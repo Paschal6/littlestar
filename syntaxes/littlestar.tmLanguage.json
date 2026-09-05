@@ -1,0 +1,122 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Littlestar",
+  "scopeName": "source.lstar",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#spark-special" },
+    { "include": "#keywords" },
+    { "include": "#booleans" },
+    { "include": "#constants" },
+    { "include": "#builtins" },
+    { "include": "#function-calls" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.littlestar",
+          "begin": "!!",
+          "end": "!!"
+        },
+        {
+          "name": "comment.line.number-sign.littlestar",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.littlestar",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.littlestar", "match": "\\\\." },
+            { "name": "variable.interpolation.littlestar", "match": "\\{[^}]+\\}" }
+          ]
+        },
+        {
+          "name": "string.quoted.single.littlestar",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            { "name": "constant.character.escape.littlestar", "match": "\\\\." },
+            { "name": "variable.interpolation.littlestar", "match": "\\{[^}]+\\}" }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.littlestar",
+          "match": "\\b\\d+(\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "spark-special": {
+      "patterns": [
+        {
+          "name": "keyword.control.spark.littlestar",
+          "match": "\\bspark\\s+(main|print)\\b"
+        },
+        {
+          "name": "entity.name.tag.spark.littlestar",
+          "match": "\\bspark\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.littlestar",
+          "match": "\\b(module|declare|make|set|fix|when|elif|otherwise|while|repeat|this|compile|import|export|private|to|from|letarr|letobj|letset|createdb|removedb|func|lion|save|del|delete|file|web|contains|as|till|in|stop|skip|return|match|case|default|swap|assert)\\b"
+        }
+      ]
+    },
+    "booleans": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.littlestar",
+          "match": "\\b(yes|no)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "support.constant.littlestar",
+          "match": "\\b(pi|e|tau|phi|inf|ninf|nan|sqrt2|sqrt3|ln2|ln10|log2e|log10e|c|g|avogadro|planck|boltzmann|earthmass|sunmass|au|lightyear|parsec|yeardays|weekdays|hoursec|daysec|yearsec|newline|tab|space|empty|version|author|langname|unionSymbol|intersectionSymbol|subsetSymbol|supersetSymbol|properSubsetSymbol|properSupersetSymbol|emptySetSymbol|elementOfSymbol|notElementOfSymbol|universalSetSymbol|dayslist)\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.littlestar",
+          "match": "\\b(display|shine|glow|input|readNum|readPassword|confirm|alert|message|choose|chooseMany|search|sqrt|square|cbrt|cube|pow|lcm|hcf|gcd|abs|approximate|round|decimals|min|max|exp|floor|ceil|sign|factorial|facsq|faccube|facdifference|fibonacci|isPrime|primes|facsum|isEven|isOdd|evens|odds|evensBetween|oddsBetween|log|ln|log10|log2|logbase|antilog|sin|cos|tan|asin|acos|atan|radsin|radcos|radtan|gradsin|gradcos|gradtan|sinh|cosh|tanh|logsin|logcos|logtan|math|nthroot|mod|percent|distance|clamp|degrad|degtorad|raddeg|radtodeg|add|remove|pop|sort|dsort|join|avg|sum|median|mode|unique|first|last|count|reverse|addFirst|insertAt|removeFirst|removeItem|indexOf|savefile|exportfile|variance|stddev|range|quadratic|bin|oct|hex|toInt|toNum|toStr|comma|upper|lower|sentence|toggle|trim|includes|charAt|pick|startsWith|endsWith|repeat|replace|split|padLeft|padRight|wordCount|capitalize|isStr|isNum|isArr|isObj|isBool|isWhole|isInteger|isDecimal|isPositive|isNegative|isZero|type|len|random|randInt|randText|randomChoice|randomChoose|datenow|timenow|yearnow|monthnow|daynow|hournow|minutenow|secondnow|months|days|weekdayNow|read|write|append|exists|fetch|convertCurrency|calc|convert|area|perimeter|volume|hash|lbr|map|filter|flatten|chunk|zip|elapsed|timestamp|format|countdb|hasdb|listdbs|jsonParse|jsonStringify|fraction|image|sleep|httpGet|httpPost|httpPut|httpDelete|solve|simultaneousLinear|mathset)\\b"
+        }
+      ]
+    },
+    "function-calls": {
+      "patterns": [
+        {
+          "name": "entity.name.function.littlestar",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*\\()"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.littlestar",
+          "match": "(\\+|-|\\*|/|=|==|!=|<>|<|>|<=|>=|&&|\\|\\||!|\\band\\b|\\bor\\b|\\bnot\\b|\\bmod\\b)"
+        }
+      ]
+    }
+  }
+}
