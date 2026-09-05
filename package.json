@@ -1,0 +1,85 @@
+{
+  "name": "littlestar",
+  "displayName": "Littlestar Language",
+  "description": "Official language support for Littlestar — a beautiful scripting language for everyone. Syntax highlighting, terminal runner, and web preview built-in.",
+  "version": "1.0.0",
+  "publisher": "godspower-kenneth",
+  "author": {
+    "name": "Godspower Kenneth U."
+  },
+  "license": "MIT",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Other"
+  ],
+  "keywords": [
+    "littlestar",
+    "lstar",
+    "scripting",
+    "beginner",
+    "education"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/godspower-kenneth/littlestar"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:littlestar"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "littlestar",
+        "aliases": ["Littlestar", "lstar"],
+        "extensions": [".lstar"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icon.png",
+          "dark": "./icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "littlestar",
+        "scopeName": "source.lstar",
+        "path": "./syntaxes/littlestar.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "littlestar.run",
+        "title": "Run Littlestar File",
+        "icon": "$(play)"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "littlestar.run",
+          "when": "resourceLangId == littlestar",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Littlestar",
+      "properties": {
+        "littlestar.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional: Custom path to the Littlestar CLI. Leave empty to use built-in interpreter."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "readline-sync": "^1.4.10"
+  }
+}

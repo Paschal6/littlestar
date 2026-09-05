@@ -1,0 +1,7 @@
+.vscode/**
+.vscode-test/**
+.gitignore
+.eslintrc.json
+**/*.map
+**/.DS_Store
+node_modules/.bin/**

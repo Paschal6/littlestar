@@ -1,0 +1,11 @@
+module littlestar:
+
+    spark main(1):
+        display("Connecting to API...")
+        sleep(2000)
+        display('ok')
+        sleep(2000)
+        display("Fetching data...")
+        
+    spark print:
+        main(1)

@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Littlestar Web Engine</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0F0F1E;color:#fff;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.panel-header{padding:10px 16px;background:rgba(0,0,0,.5);border-bottom:1px solid rgba(250,204,21,.2);display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#facc15;font-weight:600}
+#output-tabs{display:flex;gap:6px}
+.out-tab{padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer;border:none;background:rgba(255,255,255,.05);color:#9ca3af}
+.out-tab.active{background:rgba(250,204,21,.2);color:#facc15;font-weight:bold}
+#console-view{flex:1;padding:20px;font-family:Consolas,monospace;font-size:14px;line-height:1.5;overflow-y:auto;background:#0a0a15;white-space:pre-wrap;word-break:break-word}
+#web-view{flex:1;background:#fff;overflow:hidden;display:none;border:none;width:100%}
+.out-normal{color:#e5e7eb}.out-error{color:#f87171;font-weight:bold}.out-info{color:#60a5fa}
+.out-success{color:#4ade80;font-weight:bold}.out-shine{color:#fef08a;font-weight:600}.out-glow{color:#f472b6;font-weight:bold;font-size:16px}
+#input-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;justify-content:center;align-items:center;backdrop-filter:blur(4px)}
+#input-modal.open{display:flex}
+#input-box{background:linear-gradient(135deg,#1a1a2e,#0f0f1e);border:2px solid rgba(250,204,21,.4);border-radius:16px;padding:24px;max-width:420px;width:90%;text-align:center}
+#input-emoji{font-size:44px;margin-bottom:8px}#input-title{color:#facc15;font-size:1.25rem;font-weight:bold;margin-bottom:6px}
+#input-prompt{color:#e5e7eb;margin-bottom:16px;font-size:14px}
+#input-field{width:100%;padding:12px 14px;background:rgba(0,0,0,.5);border:2px solid rgba(250,204,21,.3);border-radius:10px;color:#fff;outline:none;margin-bottom:16px;font-size:15px}
+#input-btns{display:flex;gap:10px}
+.modal-btn{flex:1;padding:10px 14px;border-radius:8px;border:none;font-weight:bold;cursor:pointer;font-size:14px}
+.modal-btn-yes{background:#22c55e;color:#fff}.modal-btn-no{background:#ef4444;color:#fff}.modal-btn-ok{background:#facc15;color:#111}
+#choice-container{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;margin-bottom:16px}
+.choice-item{display:flex;align-items:center;gap:12px;padding:11px 14px;background:rgba(255,255,255,.05);border:2px solid rgba(250,204,21,.2);border-radius:10px;cursor:pointer;color:#e5e7eb;text-align:left;font-size:14px}
+.choice-item.selected{background:rgba(250,204,21,.2);border-color:#facc15;color:#facc15;font-weight:600}
+.choice-indicator{width:22px;height:22px;border-radius:50%;border:2px solid rgba(250,204,21,.4);display:flex;align-items:center;justify-content:center;font-size:12px}
+.choice-item.selected .choice-indicator{background:#facc15;color:#111;border-color:#facc15}
+.choice-item-multi .choice-indicator{border-radius:6px}
+</style>
+</head>
+<body>
+<div class="panel-header">
+  <span>🌟 Littlestar Output</span>
+  <div id="output-tabs">
+    <button class="out-tab active" onclick="switchTab('console')">Console</button>
+    <button class="out-tab" onclick="switchTab('web')">Web</button>
+  </div>
+</div>
+<div id="console-view"></div>
+<iframe id="web-view" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe>
+
+<div id="input-modal">
+  <div id="input-box">
+    <div id="input-emoji">💬</div>
+    <div id="input-title">Input</div>
+    <div id="input-prompt">Enter:</div>
+    <div id="choice-container" style="display:none"></div>
+    <input id="input-field" type="text">
+    <div id="input-btns"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+function switchTab(tab) {
+  document.getElementById('console-view').style.display = tab === 'console' ? 'block' : 'none';
+  document.getElementById('web-view').style.display = tab === 'web' ? 'block' : 'none';
+  document.querySelectorAll('.out-tab').forEach((b,i) => b.classList.toggle('active', (i===0&&tab==='console')||(i===1&&tab==='web')));
+}
+function appendLine(text, type) {
+  const view = document.getElementById('console-view');
+  const div = document.createElement('div');
+  div.className = {error:'out-error',info:'out-info',success:'out-success',shine:'out-shine',glow:'out-glow'}[type] || 'out-normal';
+  div.textContent = (text === '' || text == null) ? '\u00A0' : String(text);
+  view.appendChild(div);
+  view.scrollTop = view.scrollHeight;
+}
+function renderWebPreview(html) {
+  const iframe = document.getElementById('web-view');
+  if (html) {
+    iframe.srcdoc = html.includes('<head>') ? html.replace('<head>', '<head><base target="_blank">') : '<base target="_blank">' + html;
+    switchTab('web');
+  }
+}
+
+let _inputResolve = null;
+function modalInput(prompt, type, choices) {
+  return new Promise(resolve => {
+    _inputResolve = resolve;
+    const modal = document.getElementById('input-modal');
+    const field = document.getElementById('input-field');
+    const btns = document.getElementById('input-btns');
+    const cc = document.getElementById('choice-container');
+    
+    document.getElementById('input-prompt').textContent = prompt || 'Enter:';
+    document.getElementById('input-emoji').textContent = {text:'💬',number:'🔢',password:'🔐',confirm:'❓',alert:'📢',choose:'📋',chooseMany:'📋'}[type] || '💬';
+    document.getElementById('input-title').textContent = {text:'🌟 Input',number:'🔢 Number',password:'🔐 Password',confirm:'❓ Confirm',alert:'📢 Alert',choose:'📋 Choose One',chooseMany:'📋 Choose Multiple'}[type] || 'Input';
+    
+    cc.innerHTML = ''; cc.style.display = 'none'; btns.innerHTML = '';
+    const isChoice = (type === 'choose' || type === 'chooseMany');
+    field.style.display = (type === 'confirm' || type === 'alert' || isChoice) ? 'none' : 'block';
+    field.type = type === 'password' ? 'password' : type === 'number' ? 'number' : 'text';
+    field.value = '';
+    field.onkeydown = e => { if (e.key === 'Enter') doSubmit(field.value); };
+
+    if (isChoice && Array.isArray(choices)) {
+      cc.style.display = 'flex';
+      const isMulti = type === 'chooseMany';
+      const sel = new Set();
+      choices.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = 'choice-item' + (isMulti ? ' choice-item-multi' : '');
+        div.innerHTML = `<span class="choice-indicator"></span><span>${item}</span>`;
+        div.onclick = () => {
+          if (isMulti) {
+            if (sel.has(index)) { sel.delete(index); div.classList.remove('selected'); div.querySelector('.choice-indicator').textContent = ''; }
+            else { sel.add(index); div.classList.add('selected'); div.querySelector('.choice-indicator').textContent = '✓'; }
+          } else doSubmit(item);
+        };
+        cc.appendChild(div);
+      });
+      if (isMulti) {
+        const ok = document.createElement('button');
+        ok.className = 'modal-btn modal-btn-ok';
+        ok.textContent = 'Submit ➤';
+        ok.onclick = () => doSubmit(choices.filter((_,i) => sel.has(i)));
+        btns.appendChild(ok);
+      }
+    } else if (type === 'confirm') {
+      const y = document.createElement('button'); y.className = 'modal-btn modal-btn-yes'; y.textContent = '✅ Yes'; y.onclick = () => doSubmit(true);
+      const n = document.createElement('button'); n.className = 'modal-btn modal-btn-no'; n.textContent = '❌ No'; n.onclick = () => doSubmit(false);
+      btns.append(y, n);
+    } else if (type === 'alert') {
+      const ok = document.createElement('button'); ok.className = 'modal-btn modal-btn-ok'; ok.textContent = '👍 OK'; ok.onclick = () => doSubmit('ok');
+      btns.appendChild(ok);
+    } else {
+      const ok = document.createElement('button'); ok.className = 'modal-btn modal-btn-ok'; ok.textContent = 'Submit ➤'; ok.onclick = () => doSubmit(field.value);
+      btns.appendChild(ok);
+      setTimeout(() => field.focus(), 50);
+    }
+    modal.classList.add('open');
+  });
+}
+function doSubmit(val) {
+  document.getElementById('input-modal').classList.remove('open');
+  if (_inputResolve) { _inputResolve(val); _inputResolve = null; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// FULL LITTLESTAR ENGINE (with solve + all core features)
+// ═══════════════════════════════════════════════════════════
+class LittlestarError extends Error { constructor(msg, hint='') { super(msg); this.hint = hint; } }
+class BreakSignal extends Error { constructor() { super('break'); } }
+class ContinueSignal extends Error { constructor() { super('continue'); } }
+class ReturnSignal extends Error { constructor(v) { super('return'); this.value = v; } }
+
+function rewriteContains(expr) {
+  const parts = expr.split(/\s+contains\s+/);
+  if (parts.length < 2) return expr;
+  let result = parts[0];
+  for (let i = 1; i < parts.length; i++) {
+    const prevMatch = result.match(/(\w+)\s*$/);
+    if (!prevMatch) { result += ' contains ' + parts[i]; continue; }
+    const varName = prevMatch[1];
+    result = result.substring(0, result.length - varName.length);
+    const valMatch = parts[i].match(/^(.+?)(\s+(?:and|or|&&|\|\|)\s+.*)?$/);
+    const value = valMatch ? valMatch[1].trim() : parts[i].trim();
+    const rest = valMatch && valMatch[2] ? valMatch[2] : '';
+    result += `__ct(${varName},${value})${rest}`;
+  }
+  return result;
+}
+
+class Littlestar {
+  constructor() {
+    this.vars = {}; this.fixed = new Set(); this.funcs = {}; this.dbs = {};
+    this.currentLine = 0; this.sourceLines = [];
+    this.callbacks = {
+      output: (t, type) => appendLine(t, type || 'normal'),
+      input: async (p, type, choices) => await modalInput(p, type, choices),
+      web: (h) => renderWebPreview(h)
+    };
+  }
+  reset() {
+    this.vars = {}; this.fixed = new Set(); this.funcs = {}; this.dbs = {};
+    this.currentLine = 0; this.sourceLines = [];
+  }
+  emit(ev, ...args) { return this.callbacks[ev]?.(...args); }
+  lineTag() { return this.currentLine > 0 ? ` (line ${this.currentLine})` : ''; }
+
+  stripInlineComment(line) {
+    let inStr = false, strCh = '';
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if ((c === '"' || c === "'") && !inStr) { inStr = true; strCh = c; }
+      else if (c === strCh && inStr) { inStr = false; }
+      else if (c === '#' && !inStr) return line.substring(0, i).trimEnd();
+    }
+    return line;
+  }
+
+  splitArgs(text) {
+    const out = []; let cur = '', inStr = false, strCh = '';
+    let paren = 0, bracket = 0, brace = 0;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inStr) {
+        cur += c;
+        if (c === '\\' && i + 1 < text.length) { cur += text[++i]; continue; }
+        if (c === strCh) { inStr = false; strCh = ''; }
+        continue;
+      }
+      if (c === '"' || c === "'") { inStr = true; strCh = c; cur += c; continue; }
+      if (c === '(') paren++; else if (c === ')') paren--;
+      else if (c === '[') bracket++; else if (c === ']') bracket--;
+      else if (c === '{') brace++; else if (c === '}') brace--;
+      if (c === ',' && paren === 0 && bracket === 0 && brace === 0) {
+        out.push(cur.trim()); cur = ''; continue;
+      }
+      cur += c;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  }
+
+  format(val) {
+    if (val === null || val === undefined) return String(val);
+    if (typeof val === 'string') return val;
+    if (typeof val === 'boolean') return val ? 'yes' : 'no';
+    if (typeof val === 'number') return String(val);
+    if (Array.isArray(val)) return val.map(v => this.format(v)).join(', ');
+    if (typeof val === 'object') {
+      return '{\n' + Object.entries(val).map(([k,v]) => `  ${k}: ${v}`).join('\n') + '\n}';
+    }
+    return String(val);
+  }
+
+  stripComments(code) {
+    let result = '', i = 0, inString = false, stringChar = '';
+    while (i < code.length) {
+      const c = code[i], next = code[i+1];
+      if ((c === '"' || c === "'") && !inString) { inString = true; stringChar = c; result += c; i++; continue; }
+      if (c === stringChar && inString) { inString = false; result += c; i++; continue; }
+      if (c === '!' && next === '!' && !inString) {
+        const end = code.indexOf('!!', i+2);
+        if (end !== -1) {
+          result += '\n'.repeat((code.substring(i, end+2).match(/\n/g) || []).length);
+          i = end + 2; continue;
+        }
+      }
+      result += c; i++;
+    }
+    return result;
+  }
+
+  validate(code) {
+    const lines = code.split('\n');
+    const errors = [];
+    const hasModule = lines.some(l => /^module\s+littlestar\s*:/.test(this.stripInlineComment(l.trim()).trim()));
+    if (!hasModule) errors.push({ msg: "🌟 Missing 'module littlestar:'" });
+    const hasPrint = lines.some(l => /^spark\s+print\s*:/.test(this.stripInlineComment(l.trim()).trim()));
+    if (!hasPrint) errors.push({ msg: "🌟 Missing 'spark print:'" });
+    return errors;
+  }
+
+  extractMains(lines) {
+    const mains = {}, getInd = l => (l.match(/^(\s*)/)?.[1] || '').length;
+    let cur = null, body = [], ind0 = -1;
+    for (const line of lines) {
+      const s = this.stripInlineComment(line.trim()).trim(), ind = getInd(line);
+      const mm = s.match(/^spark\s+main\s*\((\d+)\)\s*:$/);
+      if (mm) {
+        if (cur !== null) mains[cur] = body;
+        cur = parseInt(mm[1]); body = []; ind0 = ind; continue;
+      }
+      if (/^spark\s+print\s*:$/.test(s) || (s.startsWith('module ') && ind === 0)) {
+        if (cur !== null) { mains[cur] = body; cur = null; }
+        continue;
+      }
+      if (cur !== null && (ind > ind0 || !s)) body.push(line);
+    }
+    if (cur !== null) mains[cur] = body;
+    return mains;
+  }
+
+  extractPrintOrder(lines) {
+    const calls = []; let inP = false, pInd = -1;
+    const getInd = l => (l.match(/^(\s*)/)?.[1] || '').length;
+    for (const line of lines) {
+      const s = this.stripInlineComment(line.trim()).trim(), ind = getInd(line);
+      if (/^spark\s+print\s*:$/.test(s)) { inP = true; pInd = ind; continue; }
+      if (inP) {
+        if (s && ind <= pInd) inP = false;
+        else {
+          const cm = s.match(/^main\s*\((\d+)\)\s*$/);
+          if (cm) calls.push(parseInt(cm[1]));
+        }
+      }
+    }
+    return calls;
+  }
+
+  // ── THE SOLVE FUNCTION (full version) ──
+  solveEquation(eq) {
+    eq = String(eq).replace(/\s/g, '').replace(/\*\*/g, '^');
+    let lhs, rhs;
+    if (eq.includes('=')) {
+      const p = eq.split('=');
+      lhs = p[0]; rhs = p[1] || '0';
+    } else {
+      lhs = eq; rhs = '0';
+    }
+    const vMatch = (lhs + rhs).match(/[a-zA-Z]/);
+    const v = vMatch ? vMatch[0] : 'x';
+
+    function parseSide(str) {
+      str = str.replace(/-/g, '+-');
+      if (str.startsWith('+')) str = str.substring(1);
+      const terms = str.split('+').filter(t => t.length > 0);
+      let a = 0, b = 0, c = 0;
+      for (let t of terms) {
+        let sign = 1;
+        if (t.startsWith('-')) { sign = -1; t = t.substring(1); }
+        if (!t) continue;
+        const sqPattern = new RegExp('^(.*?)' + v + '\\^2$|^(.*?)' + v + '\\*' + v + '$|^(.*?)' + v + '²$');
+        const sqM = t.match(sqPattern);
+        if (sqM) {
+          const coefStr = (sqM[1] || sqM[2] || sqM[3] || '').replace(/\*$/, '') || '1';
+          a += sign * (coefStr === '+' || coefStr === '' ? 1 : Number(coefStr));
+          continue;
+        }
+        const linPattern = new RegExp('^(.*?)' + v + '$');
+        const linM = t.match(linPattern);
+        if (linM) {
+          const coefStr = linM[1].replace(/\*$/, '') || '1';
+          b += sign * (coefStr === '+' || coefStr === '' ? 1 : Number(coefStr));
+          continue;
+        }
+        const num = Number(t);
+        if (!isNaN(num)) c += sign * num;
+      }
+      return { a, b, c };
+    }
+
+    const L = parseSide(lhs), R = parseSide(rhs);
+    const a = L.a - R.a, b = L.b - R.b, c = L.c - R.c;
+
+    if (a !== 0) {
+      const disc = b * b - 4 * a * c;
+      if (disc > 0) {
+        const s = Math.sqrt(disc);
+        const r1 = Math.round(((-b + s) / (2 * a)) * 1e10) / 1e10;
+        const r2 = Math.round(((-b - s) / (2 * a)) * 1e10) / 1e10;
+        return v + ' = ' + r1 + ' or ' + v + ' = ' + r2;
+      }
+      if (disc === 0) {
+        const r = Math.round((-b / (2 * a)) * 1e10) / 1e10;
+        return v + ' = ' + r + ' (double root)';
+      }
+      const re = Math.round((-b / (2 * a)) * 1e10) / 1e10;
+      const im = Math.round((Math.sqrt(-disc) / (2 * a)) * 1e10) / 1e10;
+      const imStr = im === 1 ? "i" : im + "i";
+      if (re === 0) return v + ' = ' + imStr + ' or ' + v + ' = -' + imStr;
+      return v + ' = ' + re + '+' + imStr + ' or ' + v + ' = ' + re + '-' + imStr;
+    }
+    if (b !== 0) {
+      const r = Math.round((-c / b) * 1e10) / 1e10;
+      return v + ' = ' + r;
+    }
+    return c === 0 ? 'infinite solutions' : 'no solution';
+  }
+
+  eval(expr) {
+    expr = expr.trim();
+    if (!expr) return '';
+
+    // Protect strings
+    const strings = [];
+    expr = expr.replace(/(['"])((?:\\.|(?!\1).)*)\1/g, match => {
+      const idx = strings.length;
+      strings.push(match);
+      return `__STR_${idx}__`;
+    });
+
+    // Operators
+    expr = expr
+      .replace(/<>/g, '!=')
+      .replace(/\band\b/g, '&&')
+      .replace(/\bor\b/g, '||')
+      .replace(/\bnot\b/g, '!')
+      .replace(/\byes\b/g, 'true')
+      .replace(/\bno\b/g, 'false')
+      .replace(/\bmod\b/g, '%');
+
+    // Built-ins (including solve)
+    const self = this;
+    const B = {
+      solve: (eq) => self.solveEquation(eq),
+      sqrt: Math.sqrt, abs: Math.abs, floor: Math.floor, ceil: Math.ceil,
+      round: (n,d=0) => Math.round(n*Math.pow(10,d))/Math.pow(10,d),
+      decimals: (n,d) => Number(Number(n).toFixed(d)),
+      pow: Math.pow, min: Math.min, max: Math.max,
+      len: x => x ? x.length : 0,
+      isEven: n => Number(n)%2===0, isOdd: n => Number(n)%2!==0,
+      upper: s => String(s).toUpperCase(), lower: s => String(s).toLowerCase(),
+      reverse: s => Array.isArray(s) ? [...s].reverse() : String(s).split('').reverse().join(''),
+      join: (a,s='') => Array.isArray(a) ? a.join(s) : String(a),
+      sum: (...a) => (Array.isArray(a[0])?a[0]:a).reduce((x,y)=>x+y,0),
+      avg: (...a) => { const arr=Array.isArray(a[0])?a[0]:a; return arr.reduce((x,y)=>x+y,0)/arr.length; },
+      comma: n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','),
+      random: Math.random, randInt: (a,b) => Math.floor(Math.random()*(b-a+1))+a,
+      factorial: n => { let r=1; for(let i=2;i<=n;i++) r*=i; return r; },
+      fibonacci: n => { if(n<1)return 0; if(n===1)return 1; let a=0,b=1; for(let i=2;i<=n;i++){const t=a+b;a=b;b=t;} return b; }
+    };
+
+    // Replace builtin names
+    for (const k of Object.keys(B)) {
+      expr = expr.replace(new RegExp(`\\b${k}\\b(?=\\()`, 'g'), `__b_${k}`);
+    }
+
+    // Restore strings
+    expr = expr.replace(/__STR_(\d+)__/g, (_, i) => strings[parseInt(i)]);
+
+    const ctx = { ...this.vars };
+    for (const [k, fn] of Object.entries(B)) ctx[`__b_${k}`] = fn;
+    ctx.__ct = (a,b) => Array.isArray(a) ? a.includes(b) : String(a).includes(String(b));
+
+    try {
+      return new Function(...Object.keys(ctx), `return (${expr})`)(...Object.values(ctx));
+    } catch (e) {
+      throw new LittlestarError(`🌟 Couldn't evaluate${this.lineTag()}: ${expr}`, e.message);
+    }
+  }
+
+  async execLine(line) {
+    line = this.stripInlineComment(line.trim()).trim();
+    if (!line) return;
+
+    if (line === 'stop') throw new BreakSignal();
+    if (line === 'skip') throw new ContinueSignal();
+    if (line === 'lbr') { this.emit('output', ''); return; }
+
+    // sleep
+    let m = line.match(/^sleep\s*\((.+)\)\s*$/);
+    if (m) {
+      await new Promise(r => setTimeout(r, Number(this.eval(m[1]))));
+      return;
+    }
+
+    // httpGet / httpPost etc.
+    let httpM = line.match(/^(?:declare|make|set)\s+(\w+)\s*=\s*(httpGet|httpPost|httpPut|httpDelete)\s*\((.*)\)\s*$/);
+    if (httpM) {
+      const varName = httpM[1];
+      const method  = httpM[2];
+      const args    = this.splitArgs(httpM[3]).map(a => this.eval(a.trim()));
+      const url     = String(args[0]);
+      const fetchOpts = { method: method.replace('http', '').toUpperCase(), headers: {} };
+      if (method === 'httpPost' || method === 'httpPut') {
+        fetchOpts.body = args[1] !== undefined ? String(args[1]) : '';
+        if (typeof fetchOpts.body === 'string' && fetchOpts.body.trim().startsWith('{')) {
+          fetchOpts.headers['Content-Type'] = 'application/json';
+        }
+      }
+      try {
+        const res  = await fetch(url, fetchOpts);
+        this.vars[varName] = await res.text();
+      } catch (e) {
+        throw new LittlestarError(`🌟 HTTP ${method} failed: ${e.message}`);
+      }
+      return;
+    }
+
+    // display / shine / glow
+    m = line.match(/^(display|shine|glow)\s*\((.+)\)\s*$/);
+    if (m) {
+      const text = this.format(this.eval(m[2]));
+      if (m[1] === 'shine') this.emit('output', '✨ ' + text, 'shine');
+      else if (m[1] === 'glow') this.emit('output', '🌟 ' + text, 'glow');
+      else this.emit('output', text);
+      return;
+    }
+
+    // choose
+    m = line.match(/^(?:declare|make|set)\s+(\w+)\s*=\s*choose\s*\((.*)\)\s*$/);
+    if (m) {
+      const args = this.splitArgs(m[2]);
+      const prompt = String(this.eval(args[0]));
+      const options = args.slice(1).map(a => this.eval(a.trim()));
+      this.vars[m[1]] = await this.emit('input', prompt, 'choose', options);
+      return;
+    }
+
+    // chooseMany
+    m = line.match(/^(?:declare|make|set)\s+(\w+)\s*=\s*chooseMany\s*\((.*)\)\s*$/);
+    if (m) {
+      const args = this.splitArgs(m[2]);
+      const prompt = String(this.eval(args[0]));
+      const options = args.slice(1).map(a => this.eval(a.trim()));
+      const res = await this.emit('input', prompt, 'chooseMany', options);
+      this.vars[m[1]] = Array.isArray(res) ? res : [res];
+      return;
+    }
+
+    // input
+    m = line.match(/^(?:declare|make|set)\s+(\w+)\s*=\s*input\s*\((.*)\)\s*$/);
+    if (m) {
+      this.vars[m[1]] = await this.emit('input', m[2].trim() ? String(this.eval(m[2])) : 'Enter text:', 'text');
+      return;
+    }
+
+    // readNum
+    m = line.match(/^(?:declare|make|set)\s+(\w+)\s*=\s*readNum\s*\((.*)\)\s*$/);
+    if (m) {
+      const v = await this.emit('input', m[2].trim() ? String(this.eval(m[2])) : 'Enter a number:', 'number');
+      if (isNaN(Number(v))) throw new LittlestarError(`🌟 '${v}' is not a number.`);
+      this.vars[m[1]] = Number(v);
+      return;
+    }
+
+    // confirm
+    m = line.match(/^(?:declare|make|set)\s+(\w+)\s*=\s*confirm\s*\((.*)\)\s*$/);
+    if (m) {
+      const answer = await this.emit('input', m[2].trim() ? String(this.eval(m[2])) : 'Are you sure?', 'confirm');
+      this.vars[m[1]] = (answer === true || answer === 'yes');
+      return;
+    }
+
+    // declare / make
+    m = line.match(/^(?:declare|make)\s+(\w+)\s*=\s*(.+)$/);
+    if (m) { this.vars[m[1]] = this.eval(m[2]); return; }
+
+    // set
+    m = line.match(/^set\s+(\w+)\s*=\s*(.+)$/);
+    if (m) {
+      if (!(m[1] in this.vars)) throw new LittlestarError(`🌟 '${m[1]}' was never declared.`);
+      this.vars[m[1]] = this.eval(m[2]);
+      return;
+    }
+
+    // letarr
+    m = line.match(/^letarr\s+(\w+)\s*=\s*(.+)$/);
+    if (m) {
+      this.vars[m[1]] = this.splitArgs(m[2]).map(x => this.eval(x.trim()));
+      return;
+    }
+
+    try { this.eval(line); }
+    catch (e) {
+      if (e instanceof LittlestarError) throw e;
+      throw new LittlestarError(`🌟 Unknown statement${this.lineTag()}: '${line}'`);
+    }
+  }
+
+  async execBlock(lines, base) {
+    const getInd = l => (l.match(/^(\s*)/)?.[1] || '').length;
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (!line.trim()) { i++; continue; }
+      const ind = getInd(line);
+      if (ind < base) return i;
+      const s = this.stripInlineComment(line.trim()).trim();
+      if (!s) { i++; continue; }
+
+      // web:
+      if (s === 'web:') {
+        const webLines = []; let j = i + 1;
+        while (j < lines.length && (getInd(lines[j]) > ind || !lines[j].trim())) {
+          webLines.push(lines[j]); j++;
+        }
+        let html = webLines.map(l => l.replace(/\{([^}]+)\}/g, (_, exp) => {
+          try { return this.format(this.eval(exp.trim())); } catch(e) { return _; }
+        })).join('\n');
+        this.emit('web', html);
+        i = j; continue;
+      }
+
+      // when
+      let m = s.match(/^when\s+(.+):$/);
+      if (m) {
+        const cond = this.eval(rewriteContains(m[1]));
+        const block = []; let j = i + 1;
+        while (j < lines.length && (getInd(lines[j]) > ind || !lines[j].trim())) {
+          block.push(lines[j]); j++;
+        }
+        if (cond) await this.execBlock(block, ind + 1);
+        i = j; continue;
+      }
+
+      // while
+      m = s.match(/^while\s+(.+):$/);
+      if (m) {
+        const condExpr = rewriteContains(m[1]);
+        const block = []; let j = i + 1;
+        while (j < lines.length && (getInd(lines[j]) > ind || !lines[j].trim())) {
+          block.push(lines[j]); j++;
+        }
+        let iter = 0;
+        while (this.eval(condExpr) && iter < 10000) {
+          try { await this.execBlock(block, ind + 1); }
+          catch (err) {
+            if (err instanceof BreakSignal) break;
+            if (err instanceof ContinueSignal) { iter++; continue; }
+            throw err;
+          }
+          iter++;
+        }
+        i = j; continue;
+      }
+
+      // as ... till
+      let forMatch = s.match(/^as\s+(\w+)\s+in\s+(.+)\s+till\s+(.+)\s*:$/);
+      if (forMatch) {
+        const varName = forMatch[1];
+        const startVal = Math.round(this.eval(forMatch[2]));
+        const endVal = Math.round(this.eval(forMatch[3]));
+        const block = []; let j = i + 1;
+        while (j < lines.length && (getInd(lines[j]) > ind || !lines[j].trim())) {
+          block.push(lines[j]); j++;
+        }
+        const step = startVal <= endVal ? 1 : -1;
+        for (let fi = startVal; step > 0 ? fi <= endVal : fi >= endVal; fi += step) {
+          this.vars[varName] = fi;
+          try { await this.execBlock(block, ind + 1); }
+          catch (err) {
+            if (err instanceof BreakSignal) break;
+            if (err instanceof ContinueSignal) continue;
+            throw err;
+          }
+        }
+        i = j; continue;
+      }
+
+      await this.execLine(s);
+      i++;
+    }
+    return i;
+  }
+
+  async run(code) {
+    this.reset();
+    code = this.stripComments(code);
+    this.sourceLines = code.split('\n');
+
+    const errors = this.validate(code);
+    if (errors.length > 0) {
+      appendLine(`❌ ${errors[0].msg}`, 'error');
+      return;
+    }
+
+    const lines = code.split('\n');
+    const mains = this.extractMains(lines);
+    const order = this.extractPrintOrder(lines);
+
+    appendLine('▶️ Running Program...', 'info');
+    try {
+      for (const n of order) {
+        if (mains[n]) await this.execBlock(mains[n], 1);
+      }
+      appendLine('✨ Program finished successfully!', 'success');
+    } catch (e) {
+      appendLine(`❌ Execution Error: ${e.message}`, 'error');
+    }
+  }
+}
+
+async function startRunner(code) {
+  document.getElementById('console-view').innerHTML = '';
+  const app = new Littlestar();
+  await app.run(code);
+}
+
+// Injected by extension.js
+/* __INJECT_CODE__ */
+</script>
+</body>
+</html>
